@@ -1,0 +1,19 @@
+{
+  "name": "veiledbot",
+  "version": "1.0.0",
+  "description": "Open-source modular bot starter for Veiled with Components V2 container commands.",
+  "type": "module",
+  "main": "src/index.js",
+  "license": "MIT",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "test": "node --test",
+    "check": "node --check src/index.js && node --check src/bot.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "socket.io-client": "^4.8.1"
+  }
+}
