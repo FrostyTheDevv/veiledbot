@@ -55,6 +55,12 @@ export class VeiledClient {
   getLane(laneId) { return this.request(`/lanes/${encodeURIComponent(laneId)}`); }
   getMembers(roomId, query = '') { return this.request(`/rooms/${encodeURIComponent(roomId)}/members${query ? `?${query}` : ''}`); }
   getMessages(laneId, query = '') { return this.request(`/lanes/${encodeURIComponent(laneId)}/messages${query ? `?${query}` : ''}`); }
+  getPins(laneId) { return this.request(`/lanes/${encodeURIComponent(laneId)}/pins`); }
+  getVoiceStates(laneId) { return this.request(`/lanes/${encodeURIComponent(laneId)}/voice-states`); }
+  pinMessage(messageId) { return this.request(`/messages/${encodeURIComponent(messageId)}/pin`, { method: 'POST', body: {} }); }
+  unpinMessage(messageId) { return this.request(`/messages/${encodeURIComponent(messageId)}/pin`, { method: 'DELETE' }); }
+  joinVoice(laneId) { return this.request('/voice/join', { method: 'POST', body: { laneId } }); }
+  leaveVoice(laneId) { return this.request('/voice/leave', { method: 'POST', body: { laneId } }); }
   getReactions(messageId, emoji) { return this.request(`/messages/${encodeURIComponent(messageId)}/reactions/${encodeURIComponent(emoji)}`); }
 
   async sendMessage(laneId, payload = {}) {

@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { config, validateConfig } from './config.js';
 import { VeiledClient } from './api.js';
+import { AfkStore, ReminderStore } from './state.js';
 
 const projectRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 
@@ -11,6 +12,8 @@ export class Bot {
   constructor() {
     this.config = config;
     this.api = new VeiledClient(config.token, config.apiUrl);
+    this.afk = new AfkStore();
+    this.reminders = new ReminderStore(this.api);
     this.user = null;
     this.application = null;
     this.gateway = null;
@@ -90,10 +93,14 @@ export class Bot {
 
   async start() {
     validateConfig();
-    this.user = (await this.api.getMe()).user;
-    this.application = (await this.api.getMe()).application;
+    this.afk.load();
+    this.reminders.load();
+    const identity = await this.api.getMe();
+    this.user = identity?.user;
+    this.application = identity?.application;
     if (!this.user?.id) throw new Error('Veiled did not return a bot user for this token.');
-    const gatewayUrl = this.config.gatewayUrl || (await this.api.getGateway()).url;
+    const gatewayInfo = this.config.gatewayUrl ? null : await this.api.getGateway();
+    const gatewayUrl = this.config.gatewayUrl || gatewayInfo?.url;
     if (!gatewayUrl) throw new Error('Veiled did not return a gateway URL.');
     this.gateway = io(gatewayUrl, {
       auth: { token: `Bot ${this.api.token}` },
@@ -109,6 +116,7 @@ export class Bot {
     this.startTime = Date.now();
     console.log(`VeiledBot connected as ${this.user.username || this.user.id}; loaded ${this.commands.size} commands.`);
     const shutdown = () => {
+      this.reminders.close();
       this.gateway?.disconnect();
       process.exit(0);
     };

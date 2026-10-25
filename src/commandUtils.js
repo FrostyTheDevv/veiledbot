@@ -3,7 +3,7 @@ import { createContainer, escapeMarkdown } from './containers.js';
 export const valueArray = (data, key) => Array.isArray(data) ? data : Array.isArray(data?.[key]) ? data[key] : [];
 export const messageId = (result) => result?.id || result?.message?.id || result?.data?.id || null;
 export const displayUser = (user = {}) => user.displayName || user.username || user.name || 'Unknown user';
-export const safeText = (value, max = 500) => escapeMarkdown(String(value ?? '').slice(0, max));
+export const safeText = (value, max = 500) => escapeMarkdown(String(value ?? '').slice(0, max).replaceAll('@', '@​'));
 
 export async function replyCard(client, message, card) {
   return client.sendMessage(message.laneId, {

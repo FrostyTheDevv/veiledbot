@@ -38,45 +38,51 @@ Commands load automatically from `src/commands`. Replies use a CV2 container wit
 
 ### Utility
 
-- `!help [category or command]` — interactive command browser and usage details
-- `!ping` — API round-trip time and gateway connection state
+- `!help [category or command]` — interactive browser; lists every command by category
+- `!ping` — API round-trip time and gateway state
 - `!botinfo` — runtime, gateway, and command count
-- `!userinfo [@member or user ID]` — profile, visible roles, nickname, join date
+- `!userinfo [@member or user ID]` — profile, visible roles, nickname, and join date
 - `!avatar [@member or username]` — member avatar and link
-- `!roominfo` — current room details
-- `!laneinfo` — current lane details
-- `!members` — first page returned by the room members endpoint
-- `!lanes` — lanes in the current room
-- `!rooms` — rooms the bot has joined
-- `!typing` — send a typing event
-- `!card <title> | <text>` — build a basic CV2 card
-- `!echo <text>` — repeat text in a container
+- `!afk [reason]` — persistent away state, mention notices, and auto-clear on return
+- `!remind <duration> <text>` — persistent same-lane reminder, up to 30 days
+- `!reminders` / `!remindcancel <id>` — list or cancel your reminders
 - `!timestamp` — current UTC and Unix timestamps
-- `!calc <expression>` — safe arithmetic parser; does not execute JavaScript
+- `!calc <expression>` — safe arithmetic parser, no JavaScript execution
 - `!color <#RRGGBB>` — inspect a hex color
 - `!hash <text>` — SHA-256 digest
 - `!base64 <encode|decode> <text>` — UTF-8 Base64 utility
 - `!reverse <text>` — reverse text
 - `!textstats <text>` — character, word, line, and UTF-8 byte counts
+- `!card <title> | <text>` — create a CV2 card
+- `!echo <text>` — repeat text without triggering mentions
+- `!typing` — send a typing event
 
 ### Fun
 
 - `!coinflip` — heads or tails
 - `!roll [NdS+modifier]` — dice notation such as `2d20+3`
 - `!choose option 1 | option 2 | ...` — choose from 2–20 options
-- `!8ball <question>` — playful yes-or-no response
-- `!rate <thing>` — random score
-- `!emojify <text>` — add emoji decoration
+- `!8ball <question>` — playful yes-or-no answer
+
+### Room and voice
+
+- `!roominfo` — current room details
+- `!roomstats` — summary of member and lane data returned by the API
+- `!laneinfo` — current lane details
+- `!lanes` — lanes in the current room
+- `!members` — first page returned by the room members endpoint
+- `!rooms` — rooms the bot has joined
+- `!voiceinfo` — current voice-lane participants and mute/deafen/video/stream status
 
 ### Messages
 
+- `!recent` — preview recent messages returned by the lane endpoint
 - `!history` — count messages returned by the current lane history endpoint
-- `!react [emoji]` — add a reaction to the invoking message
-- `!edit [replacement text]` — send and edit a CV2 message example
-- `!delete` — send and delete a CV2 message example
-
-Commands that read room data only display fields returned by the bot API. Member and history endpoints may paginate, so commands do not claim to show complete lists unless the API response provides a total.
-
+- `!poll question | option 1 | option 2` — create a 2–5 choice reaction poll
+- `!pin` / `!unpin` — pin or unpin the message you replied to
+- `!pins` — list pinned messages
+- `!react [emoji]` — react to the invoking message
+- `!edit [replacement text]` / `!delete` — demonstrate CV2 message edits and deletion
 ## CV2 examples
 
 ```js
@@ -119,3 +125,8 @@ Tests use Node's built-in test runner and do not require a live Veiled account. 
 ## License
 
 MIT. See [LICENSE](LICENSE).
+## Porting notes
+
+The practical features here reimplement ideas from SleeplessPY’s AFK, reminders, polls, room-statistics, and message-management cogs in JavaScript and Veiled CV2. Leo’s current bot example and route allowlist were also checked for supported routes. Moderation, role management, economy, and music playback are not stubbed because the current bot API does not provide those complete capabilities. `!voiceinfo` uses the new live voice-state endpoint; audio playback still needs a bot WebRTC/SFU media session and runtime dependencies.
+
+AFK states and reminders are stored in `data/afk.json` and `data/reminders.json` on the machine hosting the bot. These files are ignored by Git. Reminders return to the lane where they were created. Failed delivery is retried with backoff, then left visible for cancellation.
