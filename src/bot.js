@@ -5,6 +5,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { config, validateConfig } from './config.js';
 import { VeiledClient } from './api.js';
 import { AfkStore, ReminderStore } from './state.js';
+import { isGatewayEventName } from './events/names.js';
 
 const projectRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 
@@ -17,6 +18,7 @@ export class Bot {
     this.user = null;
     this.application = null;
     this.gateway = null;
+    this.gatewayListeners = new Map();
     this.commands = new Map();
     this.aliases = new Map();
     this.cooldowns = new Map();
@@ -67,6 +69,24 @@ export class Bot {
     }
   }
 
+  onGateway(eventName, listener) {
+    if (!isGatewayEventName(eventName)) throw new TypeError(`Unsupported Veiled gateway event: ${eventName}`);
+    if (typeof listener !== 'function') throw new TypeError('Gateway listener must be a function.');
+    let listeners = this.gatewayListeners.get(eventName);
+    if (!listeners) this.gatewayListeners.set(eventName, listeners = new Set());
+    listeners.add(listener);
+    this.gateway?.on(eventName, listener);
+    return () => this.offGateway(eventName, listener);
+  }
+
+  offGateway(eventName, listener) {
+    const listeners = this.gatewayListeners.get(eventName);
+    if (!listeners?.delete(listener)) return false;
+    this.gateway?.off(eventName, listener);
+    if (listeners.size === 0) this.gatewayListeners.delete(eventName);
+    return true;
+  }
+
   async getLaneInfo(laneId) {
     if (!laneId) return null;
     const cached = this.laneCache.get(laneId);
@@ -111,6 +131,9 @@ export class Bot {
       reconnectionDelayMax: 30000,
       timeout: 15000,
     });
+    for (const [eventName, listeners] of this.gatewayListeners) {
+      for (const listener of listeners) this.gateway.on(eventName, listener);
+    }
     await this.loadCommands();
     await this.loadEvents();
     this.startTime = Date.now();

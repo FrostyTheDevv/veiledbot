@@ -47,8 +47,11 @@ Commands load automatically from `src/commands`. Replies use a CV2 container wit
 - `!remind <duration> <text>` — persistent same-lane reminder, up to 30 days
 - `!reminders` / `!remindcancel <id>` — list or cancel your reminders
 - `!timestamp` — current UTC and Unix timestamps
+- `!timezone <Area/City>` / `!tz` — current time in an IANA time zone, including daylight-saving rules
 - `!calc <expression>` — safe arithmetic parser, no JavaScript execution
 - `!color <#RRGGBB>` — inspect a hex color
+- `!palette [random | theme]` — show five colors; themes include ocean, sunset, forest, pastel, neon, monochrome, warm, cool, earth, and candy
+- `!github <username | owner/repo | URL>` — look up a public GitHub profile or repository. Uses GitHub’s unauthenticated API, so its public rate limit applies.
 - `!hash <text>` — SHA-256 digest
 - `!base64 <encode|decode> <text>` — UTF-8 Base64 utility
 - `!reverse <text>` — reverse text
@@ -63,6 +66,8 @@ Commands load automatically from `src/commands`. Replies use a CV2 container wit
 - `!roll [NdS+modifier]` — dice notation such as `2d20+3`
 - `!choose option 1 | option 2 | ...` — choose from 2–20 options
 - `!8ball <question>` — playful yes-or-no answer
+- `!rps <rock | paper | scissors>` — quick single-player round against the bot
+- `!wikipedia <search terms>` / `!wiki` — find an English Wikipedia article with a short excerpt and link; requests use Wikimedia’s public API and include a five-second timeout
 
 ### Room and voice
 
@@ -72,13 +77,28 @@ Commands load automatically from `src/commands`. Replies use a CV2 container wit
 - `!lanes` — lanes in the current room
 - `!members` — first page returned by the room members endpoint
 - `!rooms` — rooms the bot has joined
+- `!invite [1h | 1d | 7d | 30d | never]` — create a room invite if the bot has Create Instant Invite. Role grants are not added by this command.
+- `!invites` — list active invites the bot can see in this room
+- `!revokeinvite <invite code>` — revoke an invite when the bot has permission
+- `!events` — list upcoming scheduled events visible to the bot
+- `!eventcreate <lane ID> | <name> | <VOICE|STAGE|EXTERNAL> | <start ISO timestamp> | [description] | [external location] | [timezone]` — create an event if the bot has Create Events permission in the selected lane
+- `!eventupdate <event ID> | <new name> | <start ISO timestamp> | [timezone]` — rename or reschedule an event the bot can manage
+- `!eventcancel <event ID> [occurrence|series]` — cancel one occurrence or future recurring events
+- `!eventrsvp <event ID> <interested|going>` — set the bot’s RSVP
+- `!moderate <kick|ban|unban|timeout|untimeout> <user ID> [duration] [reason]` — moderate room members; timeout durations range from `1m` to `28d`
+- `!roleops <create|rename|assign|remove|reorder|delete> ...` — manage room roles and member assignments with server-side permission and hierarchy checks
+- `!threadstate <archive|unarchive|lock|unlock|pin|publish> <thread ID>` — manage a forum thread; deletion requires `!threadstate delete <thread ID> confirm`
+- `!threadmembers <list|add|remove> <thread ID> [user ID]` — view and manage thread membership; added users must already be room members
+- `!webhooks list|rename|delete ...` — inspect or manage lane webhooks. The bot does not print webhook secret URLs into public chat.
+
 - `!voiceinfo` — current voice-lane participants and mute/deafen/video/stream status
+- `!capabilities` — show this bot's permissions and lane limits
 
 ### Messages
 
 - `!recent` — preview recent messages returned by the lane endpoint
 - `!history` — count messages returned by the current lane history endpoint
-- `!poll question | option 1 | option 2` — create a 2–5 choice reaction poll
+- `!poll question | option 1 | option 2` — create a native poll with 2–10 choices (24-hour duration)
 - `!pin` / `!unpin` — pin or unpin the message you replied to
 - `!pins` — list pinned messages
 - `!react [emoji]` — react to the invoking message
@@ -109,9 +129,29 @@ await client.sendMessage(laneId, {
 
 ## What this starter supports
 
-The bot uses the routes enabled by Veiled's bot API: identity, joined rooms, gateway discovery, room/lane/member reads, message history, sending/editing/deleting messages, staged uploads, reactions, typing, room leave, and interaction callbacks.
+The SDK includes wrappers for the bot-allowlisted room, lane, message, poll, role, member-moderation, scheduled-event, invite, thread, upload, interaction, voice join/leave, and webhook routes. Management commands call those routes directly; Veiled remains responsible for endpoint permissions, applicable hierarchy checks, event ownership, and rate limits. The bot does not print webhook execution URLs in room messages because the URL contains a secret token.
 
-It does not pretend to offer administrator actions that the bot API does not expose. In particular, room moderation, role/member management, automod/antinuke, music streaming, and Discord's private bot API compatibility are not implemented by this starter. Those require supported Veiled endpoints/services and, for Discord migration, a separately designed adapter. See the API allowlist in Veiled source when extending this project.
+The voice-state endpoint requires room membership and `VIEW_CHANNEL`; the capabilities endpoint checks `VIEW_CHANNEL` and reports the bot lane permissions and limits. The Bot API still does not allow user/message report submission, AutoMod rule management, antinuke, music playback, or Discord private-API compatibility. Polls use existing message and reaction routes; there is no separate poll-management endpoint. Message edits cannot add new attachments: the edit schema accepts content, embeds, components, and forum title, but not staged upload IDs. These are API gaps, so the starter does not advertise them as supported bot features.
+
+`createWebhook()` and `resetWebhookToken()` return a `webhookUrl` containing a credential. Keep it in a secret store and never send it to a public lane, log it, or commit it. The `!webhooks` command lists, renames, or deletes webhooks without revealing URL tokens.
+
+## Gateway events
+
+Use `bot.onGateway(eventName, handler)` to subscribe to an event, and call the returned function to unsubscribe. Event names are checked against the set Veiled emits today. For example:
+
+```js
+const stopListening = bot.onGateway('MESSAGE_REACTION_ADD', (event) => {
+  console.log(event.messageId, event.userId, event.emoji);
+});
+// Later, when the feature is disabled:
+stopListening();
+```
+
+Message create/update/delete, reactions, typing, and voice roster changes are sent according to lane visibility. Room, lane, member, role, AutoMod-rule, raid, scheduled-event, and room-expression updates generally go to the room event channel; private lane creation is sent only to its actor. Join-request changes also notify the applicant directly. `BOT_ROOM_ADD` and `BOT_ROOM_REMOVE` go to the bot account; `INTERACTION_CREATE` is sent to one connected socket for the application. Payloads differ by event and action. Reconnects do not replay events, so use the REST API to resynchronize state after reconnecting.
+
+The supported event names are `MESSAGE_CREATE`, `MESSAGE_UPDATE`, `MESSAGE_DELETE`, `MESSAGE_REACTION_ADD`, `MESSAGE_REACTION_REMOVE`, `TYPING_START`, `VOICE_ROSTER_UPDATE`, `LANE_CREATE`, `LANE_UPDATE`, `LANE_DELETE`, `LANE_REORDER`, `ROOM_UPDATE`, `ROOM_DELETE`, `ROOM_EXPRESSIONS_UPDATE`, `ROOM_JOIN_REQUEST_UPDATE`, `MEMBER_JOIN`, `MEMBER_LEAVE`, `MEMBER_BAN`, `MEMBER_UNBAN`, `MEMBER_TIMEOUT`, `MEMBER_ROLE_ADD`, `MEMBER_ROLE_REMOVE`, `ROLE_CREATE`, `ROLE_UPDATE`, `ROLE_DELETE`, `ROLE_POSITIONS_UPDATE`, `AUTOMOD_RULE_CREATE`, `AUTOMOD_RULE_UPDATE`, `AUTOMOD_RULE_DELETE`, `RAID_DETECTED`, `RAID_ENDED`, `SCHEDULED_EVENT_UPDATE`, `BOT_ROOM_ADD`, `BOT_ROOM_REMOVE`, and `INTERACTION_CREATE`.
+
+Veiled does not currently emit bot events for presence changes, invite create/update/delete, thread lifecycle, webhook lifecycle, poll-specific actions, or slash-command registration and dispatch. Those are not silently mapped to Discord event names.
 
 ## Development and checks
 
@@ -122,11 +162,12 @@ npm run check
 
 Tests use Node's built-in test runner and do not require a live Veiled account. Add new commands as one module with a unique `name`, optional `aliases`, and an `execute()` function. Use `client.sendContainer()` for standard replies.
 
+## Porting notes
+
+Some commands borrow ideas from SleeplessPY, then use Veiled’s message format and API. The ports include AFK, reminders, polls, room statistics, Wikipedia search, rock-paper-scissors, color palettes, and time-zone lookup. Operational moderation, role management, scheduled-event changes, invites, threads, webhooks, and native polls now call registered Bot API routes. Veiled remains responsible for permission checks, hierarchy, and rate limits.
+
+AFK states and reminders are saved as JSON in `data/` on the machine hosting the bot; those files are ignored by Git. Reminders go back to the lane where they were created. If delivery fails, the bot retries and leaves the reminder available to cancel.
+
 ## License
 
 MIT. See [LICENSE](LICENSE).
-## Porting notes
-
-The practical features here reimplement ideas from SleeplessPY’s AFK, reminders, polls, room-statistics, and message-management cogs in JavaScript and Veiled CV2. Leo’s current bot example and route allowlist were also checked for supported routes. Moderation, role management, economy, and music playback are not stubbed because the current bot API does not provide those complete capabilities. `!voiceinfo` uses the new live voice-state endpoint; audio playback still needs a bot WebRTC/SFU media session and runtime dependencies.
-
-AFK states and reminders are stored in `data/afk.json` and `data/reminders.json` on the machine hosting the bot. These files are ignored by Git. Reminders return to the lane where they were created. Failed delivery is retried with backoff, then left visible for cancellation.

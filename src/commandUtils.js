@@ -17,6 +17,7 @@ export function errorCard(error, title = 'Command failed') {
     : error?.status === 404 ? 'I could not find that Veiled resource.'
       : error?.status === 429 ? `I am being rate limited. Try again in ${Math.max(1, Math.ceil(error.retryAfter || 2))} seconds.`
         : error?.status === 0 ? 'I could not reach Veiled right now. Try again shortly.'
+          : error?.status >= 400 && error?.status < 500 && error?.message ? safeText(error.message, 300)
           : 'Something went wrong while running that command.';
   return { title, description: text, accentColor: 0xed4245 };
 }
