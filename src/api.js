@@ -106,7 +106,13 @@ export class VeiledClient {
   unpinMessage(messageId) { return this.request(`/messages/${encodeURIComponent(messageId)}/pin`, { method: 'DELETE' }); }
   joinVoice(laneId, sessionId) { return this.request('/voice/join', { method: 'POST', body: { laneId, ...(sessionId ? { sessionId } : {}) } }); }
   leaveVoice(laneId) { return this.request('/voice/leave', { method: 'POST', body: { laneId } }); }
-  getReactions(messageId, emoji) { return this.request(`/messages/${encodeURIComponent(messageId)}/reactions/${encodeURIComponent(emoji)}`); }
+  getReactions(messageId, emoji, { limit, after } = {}) {
+    const query = new URLSearchParams();
+    if (limit !== undefined) query.set('limit', String(limit));
+    if (after !== undefined) query.set('after', after);
+    const suffix = query.size ? `?${query}` : '';
+    return this.request(`/messages/${encodeURIComponent(messageId)}/reactions/${encodeURIComponent(emoji)}${suffix}`);
+  }
 
   async sendMessage(laneId, payload = {}) {
     const body = { ...payload };

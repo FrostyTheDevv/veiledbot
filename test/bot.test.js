@@ -245,9 +245,20 @@ test('all command modules load with unique names and aliases', async () => {
   assert.ok(bot.commands.has('eventcancel'));
   assert.ok(bot.commands.has('webhooks'));
   assert.ok(bot.commands.has('capabilities'));
-  const helpText = createHelpComponents(bot).flatMap((root) => root.components).filter((component) => component.type === 10).map((component) => component.content).join(' ');
+  const utilityCount = [...bot.commands.values()].filter((command) => command.category === 'utility').length;
+  const helpText = Array.from({ length: Math.ceil(utilityCount / 6) }, (_, page) => createHelpComponents(bot, 'utility', '!', page))
+    .flatMap((roots) => roots.flatMap((root) => root.components))
+    .filter((component) => component.type === 10)
+    .map((component) => component.content)
+    .join(' ');
   assert.ok(helpText.includes('**!afk**'));
-  assert.ok(helpText.includes('**!voiceinfo**'));
+  const roomCount = [...bot.commands.values()].filter((command) => command.category === 'rooms').length;
+  const roomHelp = Array.from({ length: Math.ceil(roomCount / 6) }, (_, page) => createHelpComponents(bot, 'rooms', '!', page))
+    .flatMap((roots) => roots.flatMap((root) => root.components))
+    .filter((component) => component.type === 10)
+    .map((component) => component.content)
+    .join(' ');
+  assert.ok(roomHelp.includes('**!voiceinfo**'));
   for (const command of bot.commands.values()) assert.equal(typeof command.execute, 'function', command.name);
 });
 
