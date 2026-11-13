@@ -34,6 +34,7 @@ import roomStatsCommand from '../src/commands/rooms/roomstats.js';
 import historyCommand from '../src/commands/messages/history.js';
 import reactCommand, { parseAutoReactAdd } from '../src/commands/messages/react.js';
 import highlightCommand, { parseHighlightBulkInput } from '../src/commands/utility/highlight.js';
+import forwardCommand from '../src/commands/messages/forward.js';
 
 test('container builder creates a Components V2 root without legacy content or embeds', () => {
   const payload = createContainer({ title: 'Hello', description: 'A card', sections: [{ divider: true, content: 'Details' }] });
@@ -841,4 +842,14 @@ test('VeiledClient sendDmContainer opens a DM lane and sends a CV2 container', a
     ['/api/v1/dms/dm-msg-1/messages', 'POST'],
   ]);
   assert.equal(requests[1].body.components[0].type, 17);
+});
+
+test('forward command preserves the source message as a native forward', async () => {
+  let forwarded;
+  await forwardCommand.execute({
+    client: { forwardMessage: async (...args) => { forwarded = args; }, sendContainer: async () => {} },
+    message: { laneId: 'lane-1', id: 'msg-2', replyToId: 'msg-1' },
+    rawArgs: 'context for this message',
+  });
+  assert.deepEqual(forwarded, ['lane-1', 'msg-1', { kind: 'room', content: 'context for this message', replyToId: 'msg-2' }]);
 });

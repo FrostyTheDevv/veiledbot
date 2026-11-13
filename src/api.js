@@ -121,6 +121,17 @@ export class VeiledClient {
     return this.request(`/lanes/${encodeURIComponent(laneId)}/messages`, { method: 'POST', body });
   }
 
+  forwardMessage(laneId, messageId, { kind = 'room', content, replyToId } = {}) {
+    const sourceKind = kind === 'dm' ? 'dm' : kind === 'room' ? 'room' : null;
+    if (!sourceKind) throw new TypeError('Forward source kind must be room or dm.');
+    const sourceId = String(messageId || '').trim();
+    if (!sourceId) throw new TypeError('messageId is required to forward a message.');
+    const body = { forwardFrom: { kind: sourceKind, messageId: sourceId } };
+    if (content !== undefined) body.content = String(content).slice(0, 4000);
+    if (replyToId) body.replyToId = String(replyToId);
+    return this.sendMessage(laneId, body);
+  }
+
   createPoll(laneId, { question, options, durationHours = 24, allowMultiselect = false, replyToId } = {}) {
     const allowedDurations = new Set([0, 1, 6, 24, 72, 168]);
     if (typeof question !== 'string' || !question.trim() || question.trim().length > 150) throw new TypeError('Poll question must be 1–150 characters.');
