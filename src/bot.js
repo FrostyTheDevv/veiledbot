@@ -4,7 +4,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { config, validateConfig } from './config.js';
 import { VeiledClient } from './api.js';
-import { AfkStore, AutoReactStore, HighlightStore, PrefixStore, ReminderStore, TimezoneStore } from './state.js';
+import { AfkStore, AutoReactStore, AutomodStore, HighlightStore, PrefixStore, ReminderStore, TimezoneStore } from './state.js';
 import { isGatewayEventName, isReplayableGatewayEventName } from './events/names.js';
 
 const projectRoot = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -19,6 +19,7 @@ export class Bot {
     this.prefixes = new PrefixStore();
     this.timezones = new TimezoneStore();
     this.autoreact = new AutoReactStore();
+    this.automod = new AutomodStore();
     this.highlights = new HighlightStore();
     this.reminders = new ReminderStore(this.api);
     this.cardDrafts = new Map();
@@ -187,6 +188,7 @@ export class Bot {
     this.prefixes?.load?.();
     this.timezones?.load?.();
     this.autoreact?.load?.();
+    this.automod?.load?.();
     this.highlights?.load?.();
     this.reminders.load();
     const identity = await this.api.getMe();

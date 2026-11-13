@@ -77,6 +77,16 @@ export default {
 
     let laneInfo = null;
     let roomId = message.roomId || bot.laneCache?.get?.(message.laneId)?.value?.roomId || null;
+    const automod = roomId ? bot.automod?.get?.(roomId) : null;
+    if (automod && message.author?.id && message.author.id !== bot.user?.id) {
+      const hasLink = /https?:\/\/|www\./i.test(content);
+      const caps = content.length >= 12 && content.replace(/[^A-Za-z]/g, '').length >= 8
+        && content.replace(/[^A-Z]/g, '').length / content.replace(/[^A-Za-z]/g, '').length >= 0.8;
+      const mentionCount = mentionedUsers(message).length;
+      const spam = bot.automod.isSpam(roomId, message.author.id);
+      const violation = (automod.links && hasLink) || (automod.caps && caps) || (automod.massMentions && mentionCount >= 5) || (automod.spam && spam);
+      if (violation) console.warn(`[Automod] Rule matched in room ${roomId} for user ${message.author.id}; enforcement is report-only until a moderation action is confirmed.`);
+    }
     if (needsLaneInfo && typeof bot.getLaneInfo === 'function') {
       try {
         laneInfo = await bot.getLaneInfo(message.laneId);

@@ -158,6 +158,28 @@ export class AutoReactStore {
   }
 }
 
+export class AutomodStore {
+  constructor(directory = dataDir) { this.file = new JsonFile('automod.json', {}, directory); this.entries = {}; this.windows = new Map(); }
+  load() { const data = this.file.read(); this.entries = data && typeof data === 'object' && !Array.isArray(data) ? data : {}; }
+  get(roomId) { return this.entries[String(roomId)] || { links: false, caps: false, massMentions: false, spam: false, allowedDomains: [] }; }
+  set(roomId, key, value) {
+    const id = String(roomId);
+    const current = this.get(id);
+    if (!['links', 'caps', 'massMentions', 'spam'].includes(key)) throw new RangeError('Unknown automod rule.');
+    this.entries[id] = { ...current, [key]: Boolean(value), allowedDomains: current.allowedDomains || [] };
+    this.file.write(this.entries);
+    return this.entries[id];
+  }
+  isSpam(roomId, userId, now = Date.now()) {
+    const key = `${roomId}:${userId}`;
+    const recent = (this.windows.get(key) || []).filter((stamp) => now - stamp < 10_000);
+    recent.push(now);
+    this.windows.set(key, recent);
+    if (this.windows.size > 5000) this.windows.clear();
+    return recent.length > 6;
+  }
+}
+
 export class HighlightStore {
   constructor(directory = dataDir) { this.file = new JsonFile('highlights.json', [], directory); this.entries = []; }
 
