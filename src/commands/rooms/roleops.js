@@ -290,6 +290,29 @@ export default {
       if (!idPattern.test(roleId) || !name || name.length > 100) return usage(client, message, prefix);
       await client.updateRole(roleId, { name });
       summary = `Renamed role **${safeText(roleId, 100)}** to **${safeText(name, 100)}**.`;
+    } else if (['humans', 'bots', 'all', 'unverified'].includes(action)) {
+      const mode = String(args[1] || '').toLowerCase();
+      const roleId = String(args[2] || '').trim();
+      if (!['add', 'remove'].includes(mode) || !idPattern.test(roleId) || String(args[3] || '').toLowerCase() !== 'confirm') {
+        return client.sendContainer(message.laneId, {
+          title: 'Bulk role confirmation required',
+          description: `Use \`${prefix}role ${action} add|remove <role ID> confirm\`. Bulk operations are protected because they affect many members.`,
+        }, { replyToId: message.id });
+      }
+      const membersData = await client.getMembers(lane.roomId);
+      const members = valueArray(membersData, 'members');
+      const selected = members.filter((member) => {
+        const user = member.User || member.user || {};
+        if (action === 'bots') return Boolean(user.isBot || user.bot);
+        if (action === 'unverified') return user.isVerified === false || member.isVerified === false;
+        if (action === 'humans') return !(user.isBot || user.bot);
+        return true;
+      }).filter((member) => member.userId || member.User?.id || member.user?.id).slice(0, 500);
+      for (const member of selected) {
+        const userId = member.userId || member.User?.id || member.user?.id;
+        await client[mode === 'add' ? 'assignRole' : 'removeRole'](lane.roomId, userId, roleId);
+      }
+      summary = `${mode === 'add' ? 'Added' : 'Removed'} role **${safeText(roleId, 100)}** for **${selected.length}** ${action} member(s).`;
     } else if (action === 'edit') {
       const roleId = String(args[1] || '').trim();
       const fields = String(rawArgs || '').split('|').slice(1).map((item) => item.trim());
@@ -338,6 +361,6 @@ export default {
 function usage(client, message, prefix = '!') {
   return client.sendContainer(message.laneId, {
     title: 'Role Configuration',
-    description: `Run \`${prefix}roleconfig\` (or \`${prefix}rolec\`) with no arguments to open the interactive walkthrough, or use:\n• \`${prefix}rolec create <name>\`\n• \`${prefix}rolec rename <role ID> | <new name>\`\n• \`${prefix}rolec edit <role ID> | <name> | <#RRGGBB> | <hoist> | <mentionable>\`\n• \`${prefix}rolec assign <user ID> <role ID>\`\n• \`${prefix}rolec remove <user ID> <role ID>\`\n• \`${prefix}rolec reorder <role ID> <position>\`\n• \`${prefix}rolec delete <role ID> confirm\`\n\nVeiled checks Manage Roles and enforces hierarchy rules for role changes and assignments.`,
+    description: `Run \`${prefix}roleconfig\` (or \`${prefix}rolec\`) with no arguments to open the interactive walkthrough, or use:\n• \`${prefix}rolec create <name>\`\n• \`${prefix}rolec rename <role ID> | <new name>\`\n• \`${prefix}rolec edit <role ID> | <name> | <#RRGGBB> | <hoist> | <mentionable>\`\n• \`${prefix}rolec assign <user ID> <role ID>\`\n• \`${prefix}rolec remove <user ID> <role ID>\`\n• \`${prefix}role humans|bots|all|unverified add|remove <role ID> confirm\`\n• \`${prefix}rolec reorder <role ID> <position>\`\n• \`${prefix}rolec delete <role ID> confirm\`\n\nVeiled checks Manage Roles and enforces hierarchy rules for role changes and assignments.`,
   }, { replyToId: message.id });
 }
