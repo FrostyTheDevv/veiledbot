@@ -8,10 +8,11 @@ const ROLE_ACTIONS = Object.freeze([
   { value: 'create', label: '1. Create a New Role' },
   { value: 'rename', label: '2. Rename an Existing Role' },
   { value: 'edit', label: '3. Edit Role Appearance' },
-  { value: 'assign', label: '4. Assign a Role to a Member' },
-  { value: 'remove', label: '5. Remove a Role from a Member' },
-  { value: 'reorder', label: '6. Reorder Role Position' },
-  { value: 'delete', label: '7. Delete a Role' },
+  { value: 'permissions', label: '4. Edit Role Permissions' },
+  { value: 'assign', label: '5. Assign a Role to a Member' },
+  { value: 'remove', label: '6. Remove a Role from a Member' },
+  { value: 'reorder', label: '7. Reorder Role Position' },
+  { value: 'delete', label: '8. Delete a Role' },
 ]);
 
 export function buildRoleConfigWalkthrough({
@@ -279,9 +280,17 @@ export default {
     let result;
     let summary;
     if (action === 'create') {
-      const name = String(rawArgs || '').replace(/^\s*\S+\s*/, '').trim();
+      const fields = String(rawArgs || '').replace(/^\s*\S+\s*/, '').split('|').map((item) => item.trim());
+      const name = fields[0];
       if (!name || name.length > 100) return usage(client, message, prefix);
-      result = await client.createRole(lane.roomId, { name });
+      const payload = { name };
+      if (fields[1]) {
+        if (!/^#[0-9a-f]{6}$/i.test(fields[1])) return client.sendContainer(message.laneId, { title: 'Invalid role color', description: 'Use a six-digit hex color such as `#5865F2`.' }, { replyToId: message.id });
+        payload.color = fields[1];
+      }
+      if (fields[2]) payload.hoist = fields[2].toLowerCase() === 'true';
+      if (fields[3]) payload.mentionable = fields[3].toLowerCase() === 'true';
+      result = await client.createRole(lane.roomId, payload);
       const role = result?.role || result;
       summary = `Created **${safeText(role.name || name, 100)}** · ID: ${safeText(role.id || '', 100)}`;
     } else if (action === 'rename') {
@@ -329,6 +338,12 @@ export default {
       if (mentionable !== undefined) payload.mentionable = mentionable.toLowerCase() === 'true';
       await client.updateRole(roleId, payload);
       summary = `Edited role **${safeText(roleId, 100)}**.`;
+    } else if (action === 'permissions') {
+      const roleId = await resolveRoleId(client, lane.roomId, args[1]);
+      const permissionValue = String(rawArgs || '').split('|').slice(1).join('|').trim();
+      if (!idPattern.test(roleId) || !/^\d+$/.test(permissionValue)) return client.sendContainer(message.laneId, { title: 'Invalid role permissions', description: `Use \`${prefix}role permissions <role ID or name> | <numeric Veiled permission bitfield>\`.` }, { replyToId: message.id });
+      await client.updateRole(roleId, { permissions: permissionValue });
+      summary = `Updated permissions for role **${safeText(roleId, 100)}**.`;
     } else if (action === 'assign' || action === 'remove') {
       const resolvedMember = await resolveRoomMember(client, lane.roomId, args[1]);
       const userId = resolvedMember?.userId || String(args[1] || '').trim();
