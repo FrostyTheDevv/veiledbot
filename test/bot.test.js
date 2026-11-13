@@ -2,12 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createContainer, isValidContainerPayload } from '../src/containers.js';
 import { VeiledClient } from '../src/api.js';
-import { evaluate } from '../src/commands/utility/calc.js';
 import { Bot } from '../src/bot.js';
 import { EventEmitter } from 'node:events';
 import { GATEWAY_EVENT_NAMES, isGatewayEventName } from '../src/events/names.js';
 import { createHelpComponents } from '../src/commands/utility/help.js';
-import { formatTimeZone } from '../src/commands/utility/timezone.js';
+import timezoneCommand, { formatTimeZone } from '../src/commands/utility/timezone.js';
 import { COLOR_THEMES, colorDetails, randomPalette } from '../src/commands/utility/palette.js';
 import githubCommand, { parseGitHubTarget } from '../src/commands/utility/github.js';
 import wikipediaCommand, { parseWikipediaQuery } from '../src/commands/utility/wikipedia.js';
@@ -19,7 +18,6 @@ import eventsCommand from '../src/commands/rooms/events.js';
 import eventCreateCommand, { parseEventInput } from '../src/commands/rooms/eventcreate.js';
 import eventRsvpCommand from '../src/commands/rooms/eventrsvp.js';
 import threadStateCommand from '../src/commands/rooms/threadstate.js';
-import threadMembersCommand from '../src/commands/rooms/threadmembers.js';
 import moderateCommand, { parseTimeoutDuration } from '../src/commands/rooms/moderate.js';
 import roleOpsCommand from '../src/commands/rooms/roleops.js';
 import eventUpdateCommand, { parseEventUpdate } from '../src/commands/rooms/eventupdate.js';
@@ -27,6 +25,15 @@ import eventCancelCommand from '../src/commands/rooms/eventcancel.js';
 import capabilitiesCommand from '../src/commands/rooms/capabilities.js';
 import webhooksCommand from '../src/commands/rooms/webhooks.js';
 import pollCommand from '../src/commands/messages/poll.js';
+import avatarCommand from '../src/commands/utility/avatar.js';
+import selfPrefixCommand from '../src/commands/utility/selfprefix.js';
+import cardCommand from '../src/commands/utility/card.js';
+import roomInfoCommand from '../src/commands/rooms/roominfo.js';
+import roomsCommand from '../src/commands/rooms/rooms.js';
+import roomStatsCommand from '../src/commands/rooms/roomstats.js';
+import historyCommand from '../src/commands/messages/history.js';
+import reactCommand, { parseAutoReactAdd } from '../src/commands/messages/react.js';
+import highlightCommand, { parseHighlightBulkInput } from '../src/commands/utility/highlight.js';
 
 test('container builder creates a Components V2 root without legacy content or embeds', () => {
   const payload = createContainer({ title: 'Hello', description: 'A card', sections: [{ divider: true, content: 'Details' }] });
@@ -42,6 +49,22 @@ test('container builder validates link buttons and component bounds', () => {
   assert.throws(() => createContainer({ title: 'x'.repeat(4001) }), /4000/);
   const payload = createContainer({ title: 'x', linkButtons: [{ label: 'Website', url: 'https://veiled.lol' }] });
   assert.equal(payload[0].components.at(-1).type, 1);
+});
+
+test('container builder supports media galleries, thumbnails, and interactive action rows', () => {
+  const payload = createContainer({
+    title: 'Showcase',
+    description: 'Body',
+    thumbnail: 'https://cdn.veiled.lol/avatars/test.png',
+    images: [{ url: 'https://cdn.veiled.lol/banners/test.png', description: 'Banner' }],
+    spoiler: true,
+    actionRows: [{ type: 1, components: [{ type: 2, style: 1, label: 'Click', custom_id: 'btn:1' }] }],
+  });
+  assert.equal(payload[0].type, 17);
+  assert.equal(payload[0].spoiler, true);
+  assert.ok(payload[0].components.some((c) => c.type === 9 && c.accessory?.type === 11));
+  assert.ok(payload[0].components.some((c) => c.type === 12 && c.items[0].media.url === 'https://cdn.veiled.lol/banners/test.png'));
+  assert.ok(payload[0].components.some((c) => c.type === 1 && c.components[0].custom_id === 'btn:1'));
 });
 
 test('API client scopes requests to configured base and sends one Bot auth prefix', async () => {
@@ -104,13 +127,6 @@ test('sendContainer posts a CV2 payload and reply reference', async () => {
   assert.equal(payload.components[0].type, 17);
   assert.equal(payload.replyToId, 'message-1');
   assert.equal('content' in payload, false);
-});
-
-test('calculator parses arithmetic without eval and rejects code', () => {
-  assert.equal(evaluate('2 + 3 * (4 - 1)'), 11);
-  assert.equal(evaluate('-2^2'), 4);
-  assert.throws(() => evaluate('process.exit()'));
-  assert.throws(() => evaluate('1 / 0'));
 });
 
 test('timezone utility formats IANA zones and rejects unknown values', () => {
@@ -237,14 +253,40 @@ test('all command modules load with unique names and aliases', async () => {
   assert.ok(bot.commands.has('events'));
   assert.ok(bot.commands.has('eventcreate'));
   assert.ok(bot.commands.has('eventrsvp'));
-  assert.ok(bot.commands.has('threadstate'));
-  assert.ok(bot.commands.has('threadmembers'));
+  assert.ok(bot.commands.has('thread'));
   assert.ok(bot.commands.has('moderate'));
-  assert.ok(bot.commands.has('roleops'));
+  assert.ok(bot.commands.has('roleconfig'));
   assert.ok(bot.commands.has('eventupdate'));
   assert.ok(bot.commands.has('eventcancel'));
   assert.ok(bot.commands.has('webhooks'));
-  assert.ok(bot.commands.has('capabilities'));
+  assert.ok(bot.commands.has('perms'));
+  assert.ok(bot.commands.has('selfprefix'));
+
+  // Removed commands must not exist
+  for (const removed of ['calc', 'base64', 'delete', 'echo', 'edit', 'hash', 'reverse', 'textstats', 'typing', 'timestamp', 'threadmembers']) {
+    assert.equal(bot.commands.has(removed), false, `${removed} should be removed`);
+  }
+
+  // Required aliases
+  assert.equal(bot.aliases.get('av'), 'avatar');
+  assert.equal(bot.aliases.get('a'), 'afk');
+  assert.equal(bot.aliases.get('bi'), 'botinfo');
+  assert.equal(bot.aliases.get('vi'), 'voiceinfo');
+  assert.equal(bot.aliases.get('tz'), 'timezone');
+  assert.equal(bot.aliases.get('ri'), 'roominfo');
+  assert.equal(bot.aliases.get('ec'), 'eventcreate');
+  assert.equal(bot.aliases.get('ecr'), 'eventcreate');
+  assert.equal(bot.aliases.get('eca'), 'eventcancel');
+  assert.equal(bot.aliases.get('evrsvp'), 'eventrsvp');
+  assert.equal(bot.aliases.get('evu'), 'eventupdate');
+  assert.equal(bot.aliases.get('git'), 'github');
+  assert.equal(bot.aliases.get('li'), 'laneinfo');
+  assert.equal(bot.aliases.get('mod'), 'moderate');
+  assert.equal(bot.aliases.get('rem'), 'remind');
+  assert.equal(bot.aliases.get('remc'), 'remindcancel');
+  assert.equal(bot.aliases.get('revi'), 'revokeinvite');
+  assert.equal(bot.aliases.get('rolec'), 'roleconfig');
+
   const utilityCount = [...bot.commands.values()].filter((command) => command.category === 'utility').length;
   const helpText = Array.from({ length: Math.ceil(utilityCount / 6) }, (_, page) => createHelpComponents(bot, 'utility', '!', page))
     .flatMap((roots) => roots.flatMap((root) => root.components))
@@ -501,22 +543,93 @@ test('event and thread operational commands call only supported API methods', as
   assert.deepEqual(calls[6], ['archive', 'thread_123']);
 });
 
-test('thread member command validates IDs and calls supported member routes', async () => {
-  const calls = [];
+test('avatar, roominfo, thread edit, moderate shorthand, react auto-reactions, history, card builder, and ownerOnly work properly', async () => {
+  const sent = [];
   const client = {
-    getThreadMembers: async (threadId) => { calls.push(['list', threadId]); return { members: [{ id: 'user_123', username: 'member', isOwner: false }] }; },
-    addThreadMember: async (threadId, userId) => { calls.push(['add', threadId, userId]); },
-    removeThreadMember: async (threadId, userId) => { calls.push(['remove', threadId, userId]); },
-    sendContainer: async (_laneId, value) => { calls.push(['card', value]); },
+    getMembers: async () => ({
+      members: [{ userId: 'u1', nickname: 'Malice', User: { id: 'u1', username: 'malice', avatar: 'https://cdn.veiled.lol/avatars/u1.png' } }],
+    }),
+    getRoom: async () => ({
+      room: { id: 'r1', name: 'Veiled HQ', icon: 'https://cdn.veiled.lol/icons/r1.png', banner: 'https://cdn.veiled.lol/banners/r1.png' },
+    }),
+    getLaneThreads: async () => ({ threads: [{ id: 'thread_123', name: 'General Thread', isArchived: false, isLocked: false }] }),
+    getThread: async (id) => ({ thread: { id, name: 'General Thread', isArchived: false, isLocked: false } }),
+    kickMember: async (...args) => sent.push(['kick', ...args]),
+    getMessages: async () => ({
+      messages: Array.from({ length: 7 }, (_, i) => ({
+        id: `m${i + 1}`,
+        content: `Hello message ${i + 1}`,
+        createdAt: '2026-10-31T20:00:00Z',
+        author: { username: 'user1' },
+      })),
+    }),
+    sendContainer: async (_laneId, card) => { sent.push(['card', card]); },
   };
-  const message = { laneId: 'lane1', id: 'message1' };
-  await threadMembersCommand.execute({ client, message, args: ['list', 'thread_123'] });
-  assert.deepEqual(calls[0], ['list', 'thread_123']);
-  assert.match(calls[1][1].description, /member/);
-  await threadMembersCommand.execute({ client, message, args: ['add', 'thread_123', 'user_123'] });
-  assert.deepEqual(calls[2], ['add', 'thread_123', 'user_123']);
-  await threadMembersCommand.execute({ client, message, args: ['remove', 'thread_123', 'user_123'] });
-  assert.deepEqual(calls[4], ['remove', 'thread_123', 'user_123']);
+  const bot = {
+    ownerId: 'owner_1',
+    getLaneInfo: async () => ({ roomId: 'r1', roomName: 'Veiled HQ' }),
+    prefixes: { get: () => null, set: () => {}, clear: () => {} },
+    timezones: { get: () => null, set: () => {} },
+    autoreact: {
+      rules: [],
+      list() { return this.rules; },
+      add(entry) { const item = { id: 'ar1', ...entry }; this.rules.push(item); return item; },
+    },
+    cardDrafts: new Map(),
+  };
+
+  // 1. Avatar embeds image inside container
+  await avatarCommand.execute({ bot, client, message: { laneId: 'l1', id: 'm1', author: { id: 'u1' } }, args: [] });
+  const avatarCard = sent.at(-1)[1];
+  assert.equal(avatarCard.images[0].url, 'https://cdn.veiled.lol/avatars/u1.png');
+
+  // 2. Roominfo pulls room icon and banner into container
+  await roomInfoCommand.execute({ bot, client, message: { laneId: 'l1', id: 'm1' } });
+  const roomCard = sent.at(-1)[1];
+  assert.equal(roomCard.images.length, 2);
+  assert.equal(roomCard.images[0].url, 'https://cdn.veiled.lol/icons/r1.png');
+  assert.equal(roomCard.images[1].url, 'https://cdn.veiled.lol/banners/r1.png');
+
+  // 3. Rooms and roomstats enforce bot owner only
+  await roomsCommand.execute({ bot, client, message: { laneId: 'l1', id: 'm1', author: { id: 'not_owner' } } });
+  assert.equal(sent.at(-1)[1].title, 'Bot owner only');
+  await roomStatsCommand.execute({ bot, client, message: { laneId: 'l1', id: 'm1', author: { id: 'not_owner' } } });
+  assert.equal(sent.at(-1)[1].title, 'Bot owner only');
+
+  // 4. Thread edit interactive container
+  await threadStateCommand.execute({ client, message: { laneId: 'l1', id: 'm1' }, args: ['edit', 'thread_123'] });
+  const threadCard = sent.at(-1)[1];
+  assert.ok(threadCard.actionRows.some((row) => row.components.some((c) => c.custom_id === 'veiledbot:thread:archive:thread_123')));
+
+  // 5. Moderate shorthand + username lookup
+  await moderateCommand.execute({ bot, client, message: { laneId: 'l1', id: 'm1' }, args: ['k', 'malice', 'rule', 'violation'] });
+  assert.deepEqual(sent.find((item) => item[0] === 'kick'), ['kick', 'r1', 'u1', 'rule violation']);
+
+  // 6. Auto-reaction requires quotes for phrases and accepts single words
+  assert.ok(parseAutoReactAdd('add sentence without quotes 🔥').error);
+  assert.deepEqual(parseAutoReactAdd('add "sentence here" 🔥'), { trigger: 'sentence here', isPhrase: true, emoji: '🔥' });
+  assert.deepEqual(parseAutoReactAdd('add hello 👋'), { trigger: 'hello', isPhrase: false, emoji: '👋' });
+  await reactCommand.execute({ bot, client, message: { laneId: 'l1', roomId: 'r1', id: 'm1', author: { id: 'u1' } }, args: ['add', 'sentence here', '🔥'], rawArgs: 'add "sentence here" 🔥' });
+  assert.match(sent.at(-1)[1].description, /phrase \*\*"sentence here"\*\*/);
+
+  // 7. History pagination
+  await historyCommand.execute({ client, message: { laneId: 'l1', id: 'm1' }, args: ['2'] });
+  const historyCard = sent.at(-1)[1];
+  assert.match(historyCard.description, /Page 2 of 2/);
+  assert.ok(historyCard.actionRows[0].components.every((c) => c.custom_id));
+
+  // 8. Timezone interactive region selector
+  await timezoneCommand.execute({ bot, client, message: { laneId: 'l1', id: 'm1', author: { id: 'u1' } }, args: [] });
+  const tzCard = sent.at(-1)[1];
+  assert.equal(tzCard.actionRows[0].components[0].custom_id, 'veiledbot:tz:region');
+  assert.equal(tzCard.actionRows[1].components[0].custom_id, 'veiledbot:tz:zone');
+
+  // 9. Card builder studio and selfprefix
+  await cardCommand.execute({ bot, client, message: { laneId: 'l1', id: 'm1', author: { id: 'u1' } }, args: [], rawArgs: '' });
+  const builderCard = sent.at(-1)[1];
+  assert.equal(builderCard.actionRows.length, 3);
+  await selfPrefixCommand.execute({ bot, client, message: { laneId: 'l1', id: 'm1', author: { id: 'u1' } }, args: ['?'] });
+  assert.equal(sent.at(-1)[1].title, 'Personal prefix saved');
 });
 
 test('role and moderation wrappers use bot-allowlisted routes and server-owned permission checks', async () => {
@@ -656,4 +769,76 @@ test('lane capabilities command displays returned permissions and limits', async
   assert.match(card.description, /Manage messages/);
   assert.match(card.description, /Slowmode: 5s/);
   assert.match(card.description, /Character limit: 4000/);
+});
+
+test('highlight store and command support add, configure, list, edit, prioritize, and delete', async () => {
+  const { mkdtempSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const { HighlightStore } = await import('../src/state.js');
+  const dir = mkdtempSync(join(tmpdir(), 'veiledbot-highlights-'));
+  try {
+    const store = new HighlightStore(dir);
+    store.load();
+    const sent = [];
+    const client = { sendContainer: async (_laneId, card) => { sent.push(card); } };
+    const bot = { highlights: store, getLaneInfo: async () => ({ roomId: 'room1', roomName: 'General' }) };
+    const message = { laneId: 'lane1', roomId: 'room1', id: 'm1', author: { id: 'u1' } };
+
+    // add
+    await highlightCommand.execute({ bot, client, message, args: ['add', 'veiled'], rawArgs: 'add veiled', prefix: ',' });
+    assert.equal(sent.at(-1).title, 'Highlight added');
+
+    // configure (bulk add)
+    assert.deepEqual(parseHighlightBulkInput('alpha, "beta gamma" | delta'), ['alpha', 'beta gamma', 'delta']);
+    await highlightCommand.execute({ bot, client, message, args: ['configure'], rawArgs: 'configure alpha, "beta gamma" | delta', prefix: ',' });
+    assert.equal(sent.at(-1).title, 'Highlights configured');
+    assert.equal(store.list('u1', 'room1').length, 4);
+
+    // edit
+    await highlightCommand.execute({ bot, client, message, args: ['edit', '2', '|', 'omega'], rawArgs: 'edit 2 | omega', prefix: ',' });
+    assert.equal(sent.at(-1).title, 'Highlight updated');
+    assert.equal(store.list('u1', 'room1')[1].trigger, 'omega');
+
+    // prioritize
+    await highlightCommand.execute({ bot, client, message, args: ['prioritize', '4'], rawArgs: 'prioritize 4', prefix: ',' });
+    assert.match(sent.at(-1).title, /Highlight prioritized/);
+    assert.equal(store.list('u1', 'room1')[0].trigger, 'delta');
+    assert.equal(store.list('u1', 'room1')[0].prioritized, true);
+
+    // list
+    await highlightCommand.execute({ bot, client, message, args: ['list'], rawArgs: 'list', prefix: ',' });
+    assert.match(sent.at(-1).description, /\*\*1\.\*\* ⭐ `delta`/);
+
+    // delete
+    await highlightCommand.execute({ bot, client, message, args: ['delete', '1'], rawArgs: 'delete 1', prefix: ',' });
+    assert.equal(sent.at(-1).title, 'Highlight deleted');
+    assert.equal(store.list('u1', 'room1').length, 3);
+
+    // persistence across reload
+    const reloaded = new HighlightStore(dir);
+    reloaded.load();
+    assert.equal(reloaded.list('u1', 'room1').length, 3);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('VeiledClient sendDmContainer opens a DM lane and sends a CV2 container', async () => {
+  const requests = [];
+  const client = new VeiledClient('token', 'https://api.example.test/api/v1', async (url, options) => {
+    const path = new URL(String(url)).pathname;
+    requests.push({ path, method: options.method, body: JSON.parse(options.body) });
+    if (path === '/api/v1/dms') {
+      return new Response(JSON.stringify({ channel: { id: 'dm-msg-1' } }), { status: 200, headers: { 'content-type': 'application/json' } });
+    }
+    return new Response(JSON.stringify({ id: 'dm-msg-1' }), { status: 201, headers: { 'content-type': 'application/json' } });
+  });
+
+  await client.sendDmContainer('user-99', { title: 'Highlight', description: 'Hello' });
+  assert.deepEqual(requests.map((r) => [r.path, r.method]), [
+    ['/api/v1/dms', 'POST'],
+    ['/api/v1/dms/dm-msg-1/messages', 'POST'],
+  ]);
+  assert.equal(requests[1].body.components[0].type, 17);
 });

@@ -16,6 +16,7 @@ export class VeiledClient {
     this.token = String(token || '').replace(/^Bot\s+/i, '').trim();
     this.baseUrl = baseUrl.replace(/\/+$/, '');
     this.fetch = fetchImpl;
+    this.dmCache = new Map();
   }
 
   async request(path, options = {}) {
@@ -133,6 +134,45 @@ export class VeiledClient {
     const components = createContainer({ ...card, linkButtons: linkButtons || card?.linkButtons });
     if (!isValidContainerPayload(components)) throw new TypeError('Container must use a Components V2 container root.');
     return this.sendMessage(laneId, { components, ...(replyToId ? { replyToId } : {}) });
+  }
+
+  async createDm(userId) {
+    const targetId = String(userId || '').trim();
+    if (!targetId) throw new TypeError('userId is required to open a DM.');
+    const cached = this.dmCache.get(targetId);
+    if (cached) return cached;
+
+    // Bot tokens use the same supported DM route as user sessions. Legacy
+    // Discord-style routes are intentionally rejected by the Veiled API.
+    const result = await this.request('/dms', {
+      method: 'POST',
+      body: { recipientIds: [targetId] },
+    });
+    const dmLaneId = result?.laneId || result?.lane?.id || result?.channel?.id || result?.dm?.id || result?.id || result?.data?.id || null;
+    if (dmLaneId) {
+      this.dmCache.set(targetId, String(dmLaneId));
+      if (this.dmCache.size > 1000) this.dmCache.delete(this.dmCache.keys().next().value);
+      return String(dmLaneId);
+    }
+    throw new VeiledApiError(502, 'Veiled returned no DM channel for that user.');
+  }
+
+  async sendDmContainer(userId, card, options = {}) {
+    const targetId = String(userId || '').trim();
+    const dmLaneId = await this.createDm(targetId);
+    const components = createContainer({ ...card, linkButtons: options.linkButtons || card?.linkButtons });
+    if (!isValidContainerPayload(components)) throw new TypeError('Container must use a Components V2 container root.');
+    const body = { components, ...(options.replyToId ? { replyToId: options.replyToId } : {}) };
+    try {
+      return await this.request(`/dms/${encodeURIComponent(dmLaneId)}/messages`, { method: 'POST', body });
+    } catch (error) {
+      if (error?.status === 404) {
+        this.dmCache.delete(targetId);
+        const refreshedLaneId = await this.createDm(targetId);
+        return this.request(`/dms/${encodeURIComponent(refreshedLaneId)}/messages`, { method: 'POST', body });
+      }
+      throw error;
+    }
   }
 
   async stageUpload(file, { filename, contentType = 'application/octet-stream', description } = {}) {
