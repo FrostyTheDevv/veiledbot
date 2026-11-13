@@ -9,7 +9,8 @@ const ROLE_ACTIONS = Object.freeze([
   { value: 'rename', label: '2. Rename an Existing Role' },
   { value: 'edit', label: '3. Edit Role Appearance' },
   { value: 'permissions', label: '4. Edit Role Permissions' },
-  { value: 'assign', label: '5. Assign a Role to a Member' },
+  { value: 'icon', label: '5. Set or Clear Role Icon' },
+  { value: 'assign', label: '6. Assign a Role to a Member' },
   { value: 'remove', label: '6. Remove a Role from a Member' },
   { value: 'reorder', label: '7. Reorder Role Position' },
   { value: 'delete', label: '8. Delete a Role' },
@@ -344,6 +345,13 @@ export default {
       if (!idPattern.test(roleId) || !/^\d+$/.test(permissionValue)) return client.sendContainer(message.laneId, { title: 'Invalid role permissions', description: `Use \`${prefix}role permissions <role ID or name> | <numeric Veiled permission bitfield>\`.` }, { replyToId: message.id });
       await client.updateRole(roleId, { permissions: permissionValue });
       summary = `Updated permissions for role **${safeText(roleId, 100)}**.`;
+    } else if (action === 'icon') {
+      const roleId = await resolveRoleId(client, lane.roomId, args[1]);
+      const icon = String(rawArgs || '').split('|').slice(1).join('|').trim() || String(args[2] || '').trim();
+      const clear = icon.toLowerCase() === 'clear';
+      if (!idPattern.test(roleId) || (!icon && !clear) || icon.length > 256) return usage(client, message, prefix);
+      await client.updateRole(roleId, { icon: clear ? null : icon });
+      summary = `${clear ? 'Cleared' : 'Updated'} icon for role **${safeText(roleId, 100)}**.`;
     } else if (action === 'assign' || action === 'remove') {
       const resolvedMember = await resolveRoomMember(client, lane.roomId, args[1]);
       const userId = resolvedMember?.userId || String(args[1] || '').trim();
