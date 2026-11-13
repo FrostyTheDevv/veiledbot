@@ -7,10 +7,11 @@ const ROLE_ACTIONS = Object.freeze([
   { value: 'overview', label: 'Walkthrough Overview' },
   { value: 'create', label: '1. Create a New Role' },
   { value: 'rename', label: '2. Rename an Existing Role' },
-  { value: 'assign', label: '3. Assign a Role to a Member' },
-  { value: 'remove', label: '4. Remove a Role from a Member' },
-  { value: 'reorder', label: '5. Reorder Role Position' },
-  { value: 'delete', label: '6. Delete a Role' },
+  { value: 'edit', label: '3. Edit Role Appearance' },
+  { value: 'assign', label: '4. Assign a Role to a Member' },
+  { value: 'remove', label: '5. Remove a Role from a Member' },
+  { value: 'reorder', label: '6. Reorder Role Position' },
+  { value: 'delete', label: '7. Delete a Role' },
 ]);
 
 export function buildRoleConfigWalkthrough({
@@ -106,6 +107,9 @@ export function buildRoleConfigWalkthrough({
         }],
       });
     }
+  } else if (step === 'edit') {
+    sections.push({ divider: true, content: `**Step: Edit Role Appearance**\nSelect a role, then use:\n\`${prefix}role edit <role ID> | <name> | <hex color> | <hoist true/false> | <mentionable true/false>\`` });
+    if (usableRoles.length > 0) actionRows.push({ type: 1, components: [{ type: 3, custom_id: 'veiledbot:rolec:role:edit', placeholder: 'Select a role to edit', options: usableRoles.slice(0, 25).map((r) => ({ label: String(r.name || r.id).slice(0, 100), value: String(r.id).slice(0, 80), default: r.id === activeRoleId })) }] });
   } else if (step === 'assign' || step === 'remove') {
     const verb = step === 'assign' ? 'Assign' : 'Remove';
     sections.push({
@@ -253,8 +257,8 @@ export default {
   name: 'roleconfig',
   category: 'rooms',
   description: 'Interactive role setup walkthrough to create, rename, assign, remove, reorder, or delete roles.',
-  aliases: ['rolec', 'roleops'],
-  usage: '[create|rename|assign|remove|reorder|delete ...]',
+  aliases: ['rolec', 'roleops', 'role'],
+  usage: '[create|rename|edit|assign|remove|reorder|delete ...]',
   cooldown: 5,
   async execute({ bot, client, message, args = [], rawArgs = '', prefix = '!' }) {
     const action = String(args[0] || '').toLowerCase();
@@ -286,6 +290,22 @@ export default {
       if (!idPattern.test(roleId) || !name || name.length > 100) return usage(client, message, prefix);
       await client.updateRole(roleId, { name });
       summary = `Renamed role **${safeText(roleId, 100)}** to **${safeText(name, 100)}**.`;
+    } else if (action === 'edit') {
+      const roleId = String(args[1] || '').trim();
+      const fields = String(rawArgs || '').split('|').slice(1).map((item) => item.trim());
+      const [name, color, hoist, mentionable] = fields;
+      if (!idPattern.test(roleId) || !name || name.length > 100) return usage(client, message, prefix);
+      const payload = { name };
+      if (color) {
+        if (!/^#[0-9a-f]{6}$/i.test(color)) return client.sendContainer(message.laneId, { title: 'Invalid role color', description: 'Use a six-digit hex color such as `#5865F2`.' }, { replyToId: message.id });
+        payload.color = color;
+      }
+      if (hoist !== undefined && !['true', 'false'].includes(hoist.toLowerCase())) return usage(client, message, prefix);
+      if (mentionable !== undefined && !['true', 'false'].includes(mentionable.toLowerCase())) return usage(client, message, prefix);
+      if (hoist !== undefined) payload.hoist = hoist.toLowerCase() === 'true';
+      if (mentionable !== undefined) payload.mentionable = mentionable.toLowerCase() === 'true';
+      await client.updateRole(roleId, payload);
+      summary = `Edited role **${safeText(roleId, 100)}**.`;
     } else if (action === 'assign' || action === 'remove') {
       const resolvedMember = await resolveRoomMember(client, lane.roomId, args[1]);
       const userId = resolvedMember?.userId || String(args[1] || '').trim();
@@ -318,6 +338,6 @@ export default {
 function usage(client, message, prefix = '!') {
   return client.sendContainer(message.laneId, {
     title: 'Role Configuration',
-    description: `Run \`${prefix}roleconfig\` (or \`${prefix}rolec\`) with no arguments to open the interactive walkthrough, or use:\n• \`${prefix}rolec create <name>\`\n• \`${prefix}rolec rename <role ID> | <new name>\`\n• \`${prefix}rolec assign <user ID> <role ID>\`\n• \`${prefix}rolec remove <user ID> <role ID>\`\n• \`${prefix}rolec reorder <role ID> <position>\`\n• \`${prefix}rolec delete <role ID> confirm\`\n\nVeiled checks Manage Roles and enforces hierarchy rules for role changes and assignments.`,
+    description: `Run \`${prefix}roleconfig\` (or \`${prefix}rolec\`) with no arguments to open the interactive walkthrough, or use:\n• \`${prefix}rolec create <name>\`\n• \`${prefix}rolec rename <role ID> | <new name>\`\n• \`${prefix}rolec edit <role ID> | <name> | <#RRGGBB> | <hoist> | <mentionable>\`\n• \`${prefix}rolec assign <user ID> <role ID>\`\n• \`${prefix}rolec remove <user ID> <role ID>\`\n• \`${prefix}rolec reorder <role ID> <position>\`\n• \`${prefix}rolec delete <role ID> confirm\`\n\nVeiled checks Manage Roles and enforces hierarchy rules for role changes and assignments.`,
   }, { replyToId: message.id });
 }
