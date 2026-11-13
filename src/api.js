@@ -63,6 +63,9 @@ export class VeiledClient {
   reorderRoles(roomId, positions) { return this.request(`/rooms/${encodeURIComponent(roomId)}/roles/reorder`, { method: 'PUT', body: { positions } }); }
   updateRole(roleId, payload) { return this.request(`/roles/${encodeURIComponent(roleId)}`, { method: 'PATCH', body: payload }); }
   deleteRole(roleId) { return this.request(`/roles/${encodeURIComponent(roleId)}`, { method: 'DELETE' }); }
+  getRoleAutomation(roomId) { return this.request(`/rooms/${encodeURIComponent(roomId)}/role-automation`); }
+  upsertRoleAutomation(roomId, payload) { return this.request(`/rooms/${encodeURIComponent(roomId)}/role-automation`, { method: 'POST', body: payload }); }
+  deleteRoleAutomation(roomId, ruleId) { return this.request(`/rooms/${encodeURIComponent(roomId)}/role-automation/${encodeURIComponent(ruleId)}`, { method: 'DELETE' }); }
   kickMember(roomId, userId, reason) { return this.request(`/rooms/${encodeURIComponent(roomId)}/members/${encodeURIComponent(userId)}`, { method: 'DELETE', body: reason ? { reason } : {} }); }
   banMember(roomId, userId, options = {}) { return this.request(`/rooms/${encodeURIComponent(roomId)}/bans/${encodeURIComponent(userId)}`, { method: 'PUT', body: options }); }
   unbanMember(roomId, userId) { return this.request(`/rooms/${encodeURIComponent(roomId)}/bans/${encodeURIComponent(userId)}`, { method: 'DELETE' }); }

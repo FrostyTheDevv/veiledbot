@@ -20,6 +20,22 @@ export default {
     const prefix = bot?.prefixes?.get?.(userId) || bot?.config?.commandPrefix || '!';
 
     try {
+      const buttonRole = /^veiledbot:rolebutton:(.+)$/.exec(customId);
+      if (buttonRole) {
+        const lane = laneId ? await bot.getLaneInfo(laneId) : null;
+        const roomId = lane?.roomId;
+        if (!roomId || typeof bot.api?.getRoleAutomation !== 'function') return;
+        const rules = await bot.api.getRoleAutomation(roomId).catch(() => ({}));
+        const rule = (Array.isArray(rules?.rules) ? rules.rules : []).find((r) => r.enabled && r.ruleType === 'BUTTON_ROLE' && String(r.trigger) === buttonRole[1]);
+        if (!rule) return;
+        const current = await bot.api.getMemberRoles(roomId, userId).catch(() => ({}));
+        const roleIds = valueArray(current, 'roles').map((r) => r.roleId || r.id);
+        if (roleIds.includes(rule.roleId)) await bot.api.removeRole(roomId, userId, rule.roleId);
+        else await bot.api.assignRole(roomId, userId, rule.roleId);
+        await bot.api.respondToInteraction(interactionId, { type: 'reply', content: `Role ${roleIds.includes(rule.roleId) ? 'removed' : 'added'}.`, ephemeral: true });
+        return;
+      }
+
       // 1. Help menu controls
       const helpSelection = customId === 'veiledbot:help:category'
         ? { kind: 'category', category: interaction.data.values?.[0] || 'home' }

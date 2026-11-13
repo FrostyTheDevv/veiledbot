@@ -61,6 +61,14 @@ export default {
       return;
     }
 
+    const automationRoomId = message.roomId || bot.laneCache?.get?.(message.laneId)?.value?.roomId;
+    if (automationRoomId && typeof bot.api?.getRoleAutomation === 'function') {
+      const automation = await bot.api.getRoleAutomation(automationRoomId).catch(() => ({}));
+      for (const rule of (Array.isArray(automation?.rules) ? automation.rules : []).filter((item) => item.enabled && item.ruleType === 'CUSTOM_ROLE' && item.trigger && content.toLowerCase().includes(String(item.trigger).toLowerCase()))) {
+        await bot.api.assignRole(automationRoomId, message.author.id, rule.roleId).catch((error) => console.warn('[RoleAutomation] custom role failed:', error?.message || error));
+      }
+    }
+
     const configuredPrefix = bot.config?.commandPrefix || '!';
     const userPrefix = bot.prefixes?.get?.(message.author.id) || null;
     const uniquePrefixes = [userPrefix, configuredPrefix, '!'].filter((p, i, a) => p && a.indexOf(p) === i);
