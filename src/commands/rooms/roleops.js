@@ -258,7 +258,7 @@ export default {
   category: 'rooms',
   description: 'Interactive role setup walkthrough to create, rename, assign, remove, reorder, or delete roles.',
   aliases: ['rolec', 'roleops', 'role'],
-  usage: '[create|rename|edit|assign|remove|reorder|delete ...]',
+  usage: '[create|rename|edit|assign|remove|humans|bots|all|unverified|reorder|delete ...]',
   cooldown: 5,
   async execute({ bot, client, message, args = [], rawArgs = '', prefix = '!' }) {
     const action = String(args[0] || '').toLowerCase();
@@ -285,14 +285,14 @@ export default {
       const role = result?.role || result;
       summary = `Created **${safeText(role.name || name, 100)}** · ID: ${safeText(role.id || '', 100)}`;
     } else if (action === 'rename') {
-      const roleId = String(args[1] || '').trim();
+      const roleId = await resolveRoleId(client, lane.roomId, args[1]);
       const name = String(rawArgs || '').split('|').slice(1).join('|').trim();
       if (!idPattern.test(roleId) || !name || name.length > 100) return usage(client, message, prefix);
       await client.updateRole(roleId, { name });
       summary = `Renamed role **${safeText(roleId, 100)}** to **${safeText(name, 100)}**.`;
     } else if (['humans', 'bots', 'all', 'unverified'].includes(action)) {
       const mode = String(args[1] || '').toLowerCase();
-      const roleId = String(args[2] || '').trim();
+      const roleId = await resolveRoleId(client, lane.roomId, args[2]);
       if (!['add', 'remove'].includes(mode) || !idPattern.test(roleId) || String(args[3] || '').toLowerCase() !== 'confirm') {
         return client.sendContainer(message.laneId, {
           title: 'Bulk role confirmation required',
@@ -314,7 +314,7 @@ export default {
       }
       summary = `${mode === 'add' ? 'Added' : 'Removed'} role **${safeText(roleId, 100)}** for **${selected.length}** ${action} member(s).`;
     } else if (action === 'edit') {
-      const roleId = String(args[1] || '').trim();
+      const roleId = await resolveRoleId(client, lane.roomId, args[1]);
       const fields = String(rawArgs || '').split('|').slice(1).map((item) => item.trim());
       const [name, color, hoist, mentionable] = fields;
       if (!idPattern.test(roleId) || !name || name.length > 100) return usage(client, message, prefix);
@@ -332,18 +332,18 @@ export default {
     } else if (action === 'assign' || action === 'remove') {
       const resolvedMember = await resolveRoomMember(client, lane.roomId, args[1]);
       const userId = resolvedMember?.userId || String(args[1] || '').trim();
-      const roleId = String(args[2] || '').trim();
+      const roleId = await resolveRoleId(client, lane.roomId, args[2]);
       if (!idPattern.test(userId) || !idPattern.test(roleId)) return usage(client, message, prefix);
       await client[action === 'assign' ? 'assignRole' : 'removeRole'](lane.roomId, userId, roleId);
       summary = `${action === 'assign' ? 'Assigned' : 'Removed'} role **${safeText(roleId, 100)}** ${action === 'assign' ? 'to' : 'from'} **${safeText(userId, 100)}**.`;
     } else if (action === 'reorder') {
-      const roleId = String(args[1] || '').trim();
+      const roleId = await resolveRoleId(client, lane.roomId, args[1]);
       const position = Number(args[2]);
       if (!idPattern.test(roleId) || !Number.isInteger(position) || position < 0 || position > 10_000) return usage(client, message, prefix);
       await client.reorderRoles(lane.roomId, [{ roleId, position }]);
       summary = `Requested position **${position}** for role **${safeText(roleId, 100)}**.`;
     } else if (action === 'delete') {
-      const roleId = String(args[1] || '').trim();
+      const roleId = await resolveRoleId(client, lane.roomId, args[1]);
       if (!idPattern.test(roleId) || String(args[2] || '').toLowerCase() !== 'confirm') return usage(client, message, prefix);
       await client.deleteRole(roleId);
       summary = `Deleted role **${safeText(roleId, 100)}**.`;
@@ -357,6 +357,19 @@ export default {
     }, { replyToId: message.id });
   },
 };
+
+async function resolveRoleId(client, roomId, input) {
+  const value = String(input || '').trim().replace(/^<@&([^>]+)>$/, '$1');
+  if (idPattern.test(value) && !/\s/.test(value) && value.length >= 20) return value;
+  if (typeof client.getRoomRoles !== 'function') return value;
+  const payload = await client.getRoomRoles(roomId).catch(() => ({}));
+  const roles = valueArray(payload, 'roles').filter((role) => role?.id && role.name !== '@everyone');
+  const needle = value.toLowerCase();
+  const exact = roles.find((role) => String(role.name || '').toLowerCase() === needle);
+  if (exact) return exact.id;
+  const partial = roles.filter((role) => String(role.name || '').toLowerCase().includes(needle)).sort((a, b) => String(a.name).length - String(b.name).length);
+  return partial[0]?.id || value;
+}
 
 function usage(client, message, prefix = '!') {
   return client.sendContainer(message.laneId, {
