@@ -1,6 +1,6 @@
 import { safeText, valueArray } from '../../commandUtils.js';
 export default {
-  name: 'voiceinfo', category: 'rooms', description: 'Show participant and media status in the current voice lane.', aliases: ['vcinfo'], cooldown: 5,
+  name: 'voiceinfo', category: 'rooms', description: 'Show participant and media status in the current voice lane.', aliases: ['vi', 'vcinfo'], cooldown: 5,
   async execute({ bot, client, message }) {
     const lane = await bot.getLaneInfo(message.laneId);
     if (!lane || !['VOICE', 'STAGE'].includes(String(lane.type || '').toUpperCase())) return client.sendContainer(message.laneId, { title: 'Open a voice lane first', description: 'Run this command inside a voice or stage lane. Veiled only exposes participant details for voice lanes.' }, { replyToId: message.id });

@@ -26,7 +26,7 @@ export function parseEventInput(rawArgs, now = Date.now()) {
 }
 
 export default {
-  name: 'eventcreate', category: 'rooms', description: 'Create a scheduled room event.',
+  name: 'eventcreate', category: 'rooms', description: 'Create a scheduled room event.', aliases: ['ec', 'ecr'],
   usage: '<lane ID> | <name> | <VOICE|STAGE|EXTERNAL> | <start ISO timestamp> | [description] | [external location] | [timezone]', minArgs: 1, cooldown: 15,
   async execute({ bot, client, message, rawArgs }) {
     const payload = parseEventInput(rawArgs);

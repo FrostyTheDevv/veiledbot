@@ -60,12 +60,23 @@ const token = (process.env.VEILED_BOT_TOKEN || process.env.TOKEN || '').replace(
 const apiUrl = (process.env.VEILED_API_URL || process.env.API_URL || 'https://api.veiled.lol/api/v1').replace(/\/+$/, '');
 const gatewayUrl = (process.env.VEILED_GATEWAY_URL || process.env.GATEWAY_URL || '').trim();
 const commandPrefix = process.env.BOT_PREFIX || '!';
+const DEFAULT_BOT_OWNER_IDS = ['cxvhyvwg3bn2pge6fk6axn3dy2'];
+const ownerIds = Object.freeze(
+  Array.from(new Set([
+    ...DEFAULT_BOT_OWNER_IDS,
+    ...String(process.env.VEILED_BOT_OWNER_ID || process.env.BOT_OWNER_ID || process.env.OWNER_ID || '')
+      .split(',')
+      .map((id) => id.trim())
+      .filter(Boolean),
+  ]))
+);
 const gatewayIntents = parseGatewayIntents(process.env.VEILED_BOT_INTENTS);
 const shardId = parseIntegerEnv('VEILED_BOT_SHARD_ID', process.env.VEILED_BOT_SHARD_ID, 0);
 const shardCount = parseIntegerEnv('VEILED_BOT_SHARD_COUNT', process.env.VEILED_BOT_SHARD_COUNT, 1);
 
 export const config = Object.freeze({
   token, apiUrl, gatewayUrl, commandPrefix,
+  ownerIds,
   gatewayIntents,
   shard: Object.freeze([shardId, shardCount]),
 });

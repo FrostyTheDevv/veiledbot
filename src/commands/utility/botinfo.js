@@ -1,5 +1,5 @@
 export default {
-  name: 'botinfo', category: 'utility', description: 'Show bot connection and runtime information.', aliases: ['about', 'info'], cooldown: 5,
+  name: 'botinfo', category: 'utility', description: 'Show bot connection and runtime information.', aliases: ['bi', 'about', 'info'], cooldown: 5,
   async execute({ bot, client, message }) {
     const uptime = Math.max(0, Math.floor((Date.now() - bot.startTime) / 1000));
     const days = Math.floor(uptime / 86400);

@@ -8,7 +8,11 @@ const labels = Object.freeze({
 });
 
 export default {
-  name: 'capabilities', category: 'rooms', description: 'Show permissions and lane limits for the current lane.', cooldown: 5,
+  name: 'perms',
+  category: 'rooms',
+  description: 'Show permissions and lane limits for the current lane.',
+  aliases: ['capabilities', 'permissions'],
+  cooldown: 5,
   async execute({ client, message }) {
     const result = await client.getLaneCapabilities(message.laneId);
     const capabilities = result?.capabilities || {};

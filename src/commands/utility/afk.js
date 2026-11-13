@@ -1,6 +1,6 @@
 import { safeText } from '../../commandUtils.js';
 export default {
-  name: 'afk', category: 'utility', description: 'Set an away status; it clears when you next send a message.', usage: '[reason]', cooldown: 5,
+  name: 'afk', category: 'utility', description: 'Set an away status; it clears when you next send a message.', aliases: ['a'], usage: '[reason]', cooldown: 5,
   async execute({ bot, client, message, rawArgs }) {
     if (bot.afk.get(message.author.id)) {
       bot.afk.clear(message.author.id);

@@ -1,7 +1,7 @@
 import { safeText } from '../../commandUtils.js';
 
 export default {
-  name: 'eventrsvp', category: 'rooms', description: 'Add or change the bot’s RSVP for a scheduled event.', usage: '<event ID> <interested|going>', minArgs: 2, cooldown: 8,
+  name: 'eventrsvp', category: 'rooms', description: 'Add or change the bot’s RSVP for a scheduled event.', aliases: ['evrsvp'], usage: '<event ID> <interested|going>', minArgs: 2, cooldown: 8,
   async execute({ client, message, args }) {
     const eventId = String(args[0] || '').trim();
     const response = String(args[1] || '').trim().toUpperCase();

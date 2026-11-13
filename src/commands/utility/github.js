@@ -61,7 +61,7 @@ async function fetchGitHub(target, fetchImpl) {
 }
 
 export default {
-  name: 'github', category: 'utility', description: 'Look up a public GitHub user or repository.', usage: '<username | owner/repo | github.com URL>', cooldown: 5,
+  name: 'github', category: 'utility', description: 'Look up a public GitHub user or repository.', aliases: ['git', 'gh'], usage: '<username | owner/repo | github.com URL>', cooldown: 5,
   async execute({ client, message, args, bot }) {
     const target = parseGitHubTarget(args.join(' '));
     if (!target) return client.sendContainer(message.laneId, {

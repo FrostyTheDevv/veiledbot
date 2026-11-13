@@ -1,7 +1,7 @@
 import { safeText } from '../../commandUtils.js';
 
 export default {
-  name: 'eventcancel', category: 'rooms', description: 'Cancel one scheduled event or its future recurring series.',
+  name: 'eventcancel', category: 'rooms', description: 'Cancel one scheduled event or its future recurring series.', aliases: ['eca'],
   usage: '<event ID> [occurrence|series]', minArgs: 1, cooldown: 10,
   async execute({ client, message, args }) {
     const eventId = String(args[0] || '').trim();

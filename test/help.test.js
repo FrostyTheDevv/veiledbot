@@ -77,8 +77,26 @@ test('help component interactions update home, categories, and pages in place', 
 test('help paging IDs reject malformed or unrelated controls', () => {
   assert.deepEqual(parseHelpControl('veiledbot:help:home'), { kind: 'home' });
   assert.deepEqual(parseHelpControl('veiledbot:help:page:room_news:2'), { kind: 'page', category: 'room_news', page: 2 });
+  assert.deepEqual(parseHelpControl('veiledbot:help:prev:room_news:0'), { kind: 'page', category: 'room_news', page: 0 });
+  assert.equal(parseHelpControl('veiledbot:help:stat:room_news:0'), null);
   assert.equal(parseHelpControl('veiledbot:help:page:bad:%ZZ'), null);
   assert.equal(parseHelpControl('other:button'), null);
+});
+
+test('all interactive component custom_id values in a help message are unique on every page', () => {
+  const bot = fakeBot();
+  for (const [category, pages] of [['home', [0]], ['all', [0, 1, 2]], ['utility', [0, 1, 2]], ['fun', [0]], ['rooms', [0]]]) {
+    for (const page of pages) {
+      const roots = createHelpComponents(bot, category, '!', page);
+      const customIds = roots
+        .flatMap((root) => root.components)
+        .filter((item) => item.type === 1)
+        .flatMap((row) => row.components)
+        .map((control) => control.custom_id)
+        .filter(Boolean);
+      assert.equal(new Set(customIds).size, customIds.length, `duplicate custom_id in ${category} page ${page}: ${customIds.join(', ')}`);
+    }
+  }
 });
 
 test('home reserves room under the CV2 child limit and dynamic category values stay bounded', () => {

@@ -26,6 +26,7 @@ function safeCategory(value, categories) {
 }
 
 function selectedMenu(category, categories) {
+  const selectedValue = category === 'home' || category === 'all' ? category : categoryValue(category);
   const entries = [
     { value: 'home', label: 'Help home' },
     { value: 'all', label: 'All commands' },
@@ -37,7 +38,7 @@ function selectedMenu(category, categories) {
       type: 3,
       custom_id: 'veiledbot:help:category',
       placeholder: 'Choose a command category',
-      options: entries.slice(0, 25).map(({ value, label }) => ({ label, value, default: category === value })),
+      options: entries.slice(0, 25).map(({ value, label }) => ({ label, value, default: selectedValue === value })),
     }],
   };
 }
@@ -48,8 +49,8 @@ function pageControls(category, page, pageCount) {
     type: 1,
     components: [
       { type: 2, style: 2, label: 'Home', custom_id: 'veiledbot:help:home' },
-      { type: 2, style: 2, label: 'Previous', custom_id: `veiledbot:help:page:${categoryId}:${Math.max(0, page - 1)}`, disabled: page <= 0 },
-      { type: 2, style: 2, label: `Page ${page + 1}/${pageCount}`, custom_id: `veiledbot:help:page:${categoryId}:${page}`, disabled: true },
+      { type: 2, style: 2, label: 'Previous', custom_id: `veiledbot:help:prev:${categoryId}:${Math.max(0, page - 1)}`, disabled: page <= 0 },
+      { type: 2, style: 2, label: `Page ${page + 1}/${pageCount}`, custom_id: `veiledbot:help:stat:${categoryId}:${page}`, disabled: true },
       { type: 2, style: 2, label: 'Next', custom_id: `veiledbot:help:page:${categoryId}:${Math.min(pageCount - 1, page + 1)}`, disabled: page >= pageCount - 1 },
     ],
   };
@@ -109,7 +110,7 @@ export function createHelpComponents(bot, selected = 'home', prefix = '!', reque
 
 export function parseHelpControl(customId) {
   if (customId === 'veiledbot:help:home') return { kind: 'home' };
-  const pageMatch = /^veiledbot:help:page:([a-z0-9_-]{1,80}):(\d{1,8})$/i.exec(customId || '');
+  const pageMatch = /^veiledbot:help:(?:page|prev):([a-z0-9_-]{1,80}):(\d{1,8})$/i.exec(customId || '');
   if (pageMatch) {
     return { kind: 'page', category: pageMatch[1], page: Number(pageMatch[2]) };
   }

@@ -1,7 +1,7 @@
 import { parseDuration } from '../../state.js';
 import { safeText } from '../../commandUtils.js';
 export default {
-  name: 'remind', category: 'utility', description: 'Schedule a reminder in this lane (survives bot restarts).', usage: '<duration> <reminder text>', minArgs: 2, cooldown: 5,
+  name: 'remind', category: 'utility', description: 'Schedule a reminder in this lane (survives bot restarts).', aliases: ['rem'], usage: '<duration> <reminder text>', minArgs: 2, cooldown: 5,
   async execute({ bot, client, message, args, rawArgs }) {
     const seconds = parseDuration(args[0]);
     if (!seconds) return client.sendContainer(message.laneId, { title: 'Invalid reminder time', description: 'Use a duration such as `15m`, `2h`, `1d`, or `1w2d`. Maximum is 30 days.' }, { replyToId: message.id });

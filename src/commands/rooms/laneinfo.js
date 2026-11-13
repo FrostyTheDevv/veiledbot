@@ -1,6 +1,6 @@
 import { safeText } from '../../commandUtils.js';
 export default {
-  name: 'laneinfo', category: 'rooms', description: 'Show details for the current lane.', aliases: ['channelinfo'], cooldown: 3,
+  name: 'laneinfo', category: 'rooms', description: 'Show details for the current lane.', aliases: ['li', 'channelinfo'], cooldown: 3,
   async execute({ bot, client, message }) {
     const lane = await bot.getLaneInfo(message.laneId);
     if (!lane) throw Object.assign(new Error('Could not fetch this lane.'), { status: 404 });

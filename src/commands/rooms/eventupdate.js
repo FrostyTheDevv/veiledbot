@@ -8,7 +8,7 @@ export function parseEventUpdate(rawArgs) {
 }
 
 export default {
-  name: 'eventupdate', category: 'rooms', description: 'Rename or reschedule an upcoming room event.',
+  name: 'eventupdate', category: 'rooms', description: 'Rename or reschedule an upcoming room event.', aliases: ['evu'],
   usage: '<event ID> | <new name> | <start ISO timestamp> | [timezone]', minArgs: 1, cooldown: 10,
   async execute({ client, message, rawArgs }) {
     const parsed = parseEventUpdate(rawArgs);

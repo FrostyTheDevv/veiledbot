@@ -5,7 +5,7 @@ export function isInviteCode(value) {
 }
 
 export default {
-  name: 'revokeinvite', category: 'rooms', description: 'Revoke an invite for the room this lane belongs to.', usage: '<invite code>', minArgs: 1, cooldown: 8,
+  name: 'revokeinvite', category: 'rooms', description: 'Revoke an invite for the room this lane belongs to.', aliases: ['revi'], usage: '<invite code>', minArgs: 1, cooldown: 8,
   async execute({ client, message, args }) {
     const code = String(args[0] || '').trim();
     if (!isInviteCode(code)) {

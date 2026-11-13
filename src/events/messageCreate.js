@@ -1,4 +1,4 @@
-import { errorCard, safeText } from '../commandUtils.js';
+import { errorCard, isBotOwner, safeText } from '../commandUtils.js';
 
 function mentionedUsers(message) {
   const mentions = message?.mentions;
@@ -61,17 +61,76 @@ export default {
       return;
     }
 
-    const configuredPrefix = bot.config.commandPrefix;
-    const prefixes = [configuredPrefix, '!'].filter((p, i, a) => p && a.indexOf(p) === i);
-    const matchedPrefix = prefixes.find((p) => content.startsWith(p));
-    const prefix = matchedPrefix || configuredPrefix;
+    const configuredPrefix = bot.config?.commandPrefix || '!';
+    const userPrefix = bot.prefixes?.get?.(message.author.id) || null;
+    const uniquePrefixes = [userPrefix, configuredPrefix, '!'].filter((p, i, a) => p && a.indexOf(p) === i);
+    const sortedPrefixes = [...uniquePrefixes].sort((a, b) => b.length - a.length);
+    const matchedPrefix = sortedPrefixes.find((p) => content.startsWith(p));
+    const prefix = matchedPrefix || userPrefix || configuredPrefix;
 
-    const calledAfk = content.startsWith(prefix) && /^afk(?:\s|$)/i.test(content.slice(prefix.length));
+    const calledAfk = Boolean(matchedPrefix && /^(?:afk|a)(?:\s|$)/i.test(content.slice(matchedPrefix.length).trim()));
+    const calledReactCmd = Boolean(matchedPrefix && /^(?:react|autoreact|ar)(?:\s|$)/i.test(content.slice(matchedPrefix.length).trim()));
+    const calledHighlightCmd = Boolean(matchedPrefix && /^(?:highlight|hl|hightlight)(?:\s|$)/i.test(content.slice(matchedPrefix.length).trim()));
+
+    const needsLaneInfo = (!calledReactCmd && bot.autoreact?.entries?.length && message.id && typeof bot.api?.addReaction === 'function')
+      || (!calledHighlightCmd && bot.highlights?.entries?.length && typeof bot.api?.sendDmContainer === 'function');
+
+    let laneInfo = null;
+    let roomId = message.roomId || bot.laneCache?.get?.(message.laneId)?.value?.roomId || null;
+    if (needsLaneInfo && typeof bot.getLaneInfo === 'function') {
+      try {
+        laneInfo = await bot.getLaneInfo(message.laneId);
+        roomId = roomId || laneInfo?.roomId || null;
+      } catch {
+        laneInfo = null;
+      }
+    }
+
+    if (!calledReactCmd && bot.autoreact?.entries?.length && message.id && typeof bot.api?.addReaction === 'function') {
+      const matches = bot.autoreact.match(roomId, message.laneId, content);
+      for (const rule of matches) {
+        try {
+          await bot.api.addReaction(message.id, rule.emoji);
+        } catch (err) {
+          console.error(`[AutoReact] Failed to add reaction ${rule.emoji}: ${err?.message || 'unknown error'}`);
+        }
+      }
+    }
+
+    if (!calledHighlightCmd && bot.highlights?.entries?.length && typeof bot.api?.sendDmContainer === 'function') {
+      const hlMatches = bot.highlights.match(roomId, message.author.id, content);
+      if (hlMatches.length) {
+        const authorLabel = safeText(message.author.displayName || message.author.username || message.author.id, 80);
+        const roomLabel = safeText(laneInfo?.roomName || bot.laneCache?.get?.(message.laneId)?.value?.roomName || 'Room', 80);
+        const laneLabel = safeText(laneInfo?.name || bot.laneCache?.get?.(message.laneId)?.value?.name || message.laneId, 80);
+        const excerpt = safeText(content, 1000);
+
+        for (const { userId, entries } of hlMatches) {
+          const primary = entries[0];
+          const keywords = entries.map((e) => `${e.prioritized ? '⭐ ' : ''}\`${safeText(e.trigger, 60)}\``).join(', ');
+          try {
+            await bot.api.sendDmContainer(userId, {
+              title: primary?.prioritized ? '⭐ Priority highlight triggered' : '🔔 Highlight triggered',
+              description: [
+                `**Matched:** ${keywords}`,
+                `**From:** ${authorLabel} in **${roomLabel}** (#${laneLabel})`,
+                '',
+                `> ${excerpt}`,
+              ].join('\n'),
+              footer: message.id ? `Message ID: ${message.id}` : undefined,
+              accentColor: primary?.prioritized ? 0xfee75c : 0x5865f2,
+            });
+          } catch (err) {
+            console.error(`[Highlight] Failed to DM user ${userId}: ${err?.message || 'unknown error'}`);
+          }
+        }
+      }
+    }
 
     const mentionedAfk = [];
     for (const entry of mentionedUsers(message)) {
       const id = String(entry?.id || entry?.userId || entry || '');
-      const state = bot.afk.get(id);
+      const state = bot.afk?.get?.(id);
       if (state && id !== message.author.id && bot.afk.shouldNotify(message.author.id, id)) {
         mentionedAfk.push({ name: entry?.displayName || entry?.username || entry?.name || id, reason: state.reason });
       }
@@ -82,7 +141,7 @@ export default {
       await bot.api.sendContainer(message.laneId, { title: 'Away right now', description: details }, { replyToId: message.id });
     }
 
-    if (bot.afk.get(message.author.id) && !calledAfk) {
+    if (bot.afk?.get?.(message.author.id) && !calledAfk) {
       bot.afk.clear(message.author.id);
       await bot.api.sendContainer(message.laneId, { title: 'Welcome back', description: `${safeText(message.author.displayName || message.author.username || 'You', 80)} is no longer marked as away.` }, { replyToId: message.id });
     }
@@ -126,6 +185,14 @@ export default {
     console.log(`[Command] Executing "${command.name}" for ${message.author.username || message.author.id} in lane ${message.laneId} [${args.join(', ')}]`);
 
     try {
+      if (command.ownerOnly && !isBotOwner(bot, message.author.id)) {
+        await bot.api.sendContainer(message.laneId, {
+          title: 'Bot owner only',
+          description: `The **${usedPrefix}${command.name}** command can only be used by the bot owner.`,
+          accentColor: 0xed4245,
+        }, { replyToId: message.id });
+        return;
+      }
       const remaining = bot.consumeCooldown(command, message.author.id);
       if (remaining) {
         console.log(`[Command:${command.name}] Cooldown active: ${remaining}s remaining`);

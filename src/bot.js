@@ -4,7 +4,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { config, validateConfig } from './config.js';
 import { VeiledClient } from './api.js';
-import { AfkStore, ReminderStore } from './state.js';
+import { AfkStore, AutoReactStore, HighlightStore, PrefixStore, ReminderStore, TimezoneStore } from './state.js';
 import { isGatewayEventName, isReplayableGatewayEventName } from './events/names.js';
 
 const projectRoot = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -16,9 +16,16 @@ export class Bot {
     this.installSignalHandlers = options.installSignalHandlers !== false;
     this.api = options.api || new VeiledClient(this.config.token, this.config.apiUrl);
     this.afk = new AfkStore();
+    this.prefixes = new PrefixStore();
+    this.timezones = new TimezoneStore();
+    this.autoreact = new AutoReactStore();
+    this.highlights = new HighlightStore();
     this.reminders = new ReminderStore(this.api);
+    this.cardDrafts = new Map();
+    this.roleDrafts = new Map();
     this.user = null;
     this.application = null;
+    this.ownerId = null;
     this.gateway = null;
     this.gatewayListeners = new Map();
     this.gatewayModules = new Map();
@@ -177,10 +184,15 @@ export class Bot {
   async start() {
     validateConfig(this.config);
     this.afk.load();
+    this.prefixes?.load?.();
+    this.timezones?.load?.();
+    this.autoreact?.load?.();
+    this.highlights?.load?.();
     this.reminders.load();
     const identity = await this.api.getMe();
     this.user = identity?.user;
     this.application = identity?.application;
+    this.ownerId = identity?.ownerId || identity?.application?.ownerId || identity?.application?.owner?.id || identity?.application?.userId || identity?.user?.ownerId || this.config?.ownerIds?.[0] || 'cxvhyvwg3bn2pge6fk6axn3dy2';
     if (!this.user?.id) throw new Error('Veiled did not return a bot user for this token.');
     const gatewayInfo = this.config.gatewayUrl ? null : await this.api.getGateway();
     const gatewayUrl = this.config.gatewayUrl || gatewayInfo?.url;
@@ -224,6 +236,7 @@ export class Bot {
       console.log(`[Gateway] Gateway intents: ${this.config.gatewayIntents} (MESSAGE_CONTENT enabled)`);
     }
     const shutdown = () => {
+      clearTimeout(this.reconnectTimer);
       this.reminders.close();
       this.gateway?.disconnect();
       process.exit(0);

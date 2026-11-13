@@ -95,3 +95,67 @@ test('messageCreate executes command with configured prefix and fallback prefix'
   assert.equal(executedCommand.prefix, '!');
   assert.deepEqual(executedCommand.args, ['fallback', 'test']);
 });
+
+test('messageCreate sends a DM container when a highlighted word is triggered', async () => {
+  const { mkdtempSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const { HighlightStore } = await import('../src/state.js');
+  const dir = mkdtempSync(join(tmpdir(), 'veiledbot-hl-msg-'));
+
+  try {
+    const highlights = new HighlightStore(dir);
+    highlights.load();
+    highlights.add('watcher-1', 'giveaway', { roomId: 'room-1' });
+    highlights.prioritize('watcher-1', 1, 1, 'room-1');
+
+    const dmSent = [];
+    const fakeBot = {
+      user: { id: 'bot-1', username: 'VeiledBot' },
+      config: { commandPrefix: ',' },
+      afk: { get: () => null, clear: () => {} },
+      highlights,
+      aliases: new Map(),
+      commands: new Map(),
+      consumeCooldown: () => 0,
+      getLaneInfo: async () => ({ id: 'lane-1', name: 'general', roomId: 'room-1', roomName: 'Veiled HQ' }),
+      api: {
+        sendDmContainer: async (userId, card) => {
+          dmSent.push({ userId, card });
+        },
+        sendContainer: async () => {},
+      },
+    };
+
+    // Another user says the highlighted word -> sends DM container
+    await messageCreateEvent.execute(fakeBot, {
+      roomId: 'room-1',
+      laneId: 'lane-1',
+      message: {
+        id: 'msg-10',
+        content: 'Hey everyone, new giveaway starting soon!',
+        author: { id: 'speaker-2', username: 'Speaker' },
+      },
+    });
+
+    assert.equal(dmSent.length, 1);
+    assert.equal(dmSent[0].userId, 'watcher-1');
+    assert.match(dmSent[0].card.title, /Priority highlight triggered/);
+    assert.match(dmSent[0].card.description, /giveaway/);
+    assert.match(dmSent[0].card.description, /Hey everyone, new giveaway starting soon/);
+
+    // Watcher's own message should NOT trigger a DM to themselves
+    await messageCreateEvent.execute(fakeBot, {
+      roomId: 'room-1',
+      laneId: 'lane-1',
+      message: {
+        id: 'msg-11',
+        content: 'My own giveaway message',
+        author: { id: 'watcher-1', username: 'Watcher' },
+      },
+    });
+    assert.equal(dmSent.length, 1);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
